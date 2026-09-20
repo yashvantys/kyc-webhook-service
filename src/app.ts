@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { handleKycWebhook } from "./controllers/kyc-webhook.controller.js";
 import { authenticate } from "./middleware/auth.middleware.js";
 import { getKycStatus } from "./controllers/investor.controller.js";
@@ -17,6 +17,14 @@ app.use(
         },
     }),
 );
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof SyntaxError) {
+        return res.status(400).json({ error: "Invalid JSON" });
+    }
+    console.error("Unhandled error", err);
+    return res.status(500).json({ error: "Internal server error" });
+});
 app.get("/health", (_req, res) => {
     res.status(200).json({
         status: "ok",
