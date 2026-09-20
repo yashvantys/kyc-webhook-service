@@ -1,0 +1,12 @@
+node_modules/
+.env
+# Build
+dist/
+build/
+# Prisma
+prisma/migrations/
+!prisma/migrations/.gitkeep
+.agents
+.claude
+.cursor
+.devin
