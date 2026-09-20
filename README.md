@@ -332,3 +332,31 @@ Tenant and investor claims are enforced at the API layer.
 Secrets are supplied through environment variables.
 
 Bearer tokens and webhook secrets must not be logged.
+
+## Architecture Note
+
+Decisions: The service handles KYC webhooks with three critical guarantees: authenticity, idempotency, and non-blocking response.
+
+1. HMAC validation on raw body: We use express.raw for /webhooks/kyc to preserve exact bytes for HMAC-SHA256. Validation uses crypto.timingSafeEqual to prevent timing attacks. Invalid signatures return 401 and are logged with IP as security event.
+
+2. Two-layer idempotency: Redis SET NX with 72h TTL provides fast request-level deduplication and prevents race conditions when provider retries duplicate events concurrently. PostgreSQL unique constraint on WebhookEvent.event_id provides durable protection if Redis is flushed. This matches CubeSquare's requirement that every money-touching action be idempotent and auditable.
+
+3. BullMQ for async processing: Handler enqueues job and returns 200 immediately - processing does not block response. Worker runs with concurrency 10 to handle 100 req/min rate limit. Failed jobs retry 3 times with exponential backoff. Investor kyc_status update and WebhookEvent audit record are written in single Prisma transaction to ensure atomicity.
+
+4. Tenant isolation: GET /investors/:id/kyc-status requires Bearer JWT containing tenant_id and investor_id. Middleware verifies signature via JWT_SECRET. Service checks investor.tenant_id == claims.tenant_id, else 403 with security log TENANT_ISOLATION_VIOLATION. This enforces application-layer isolation separate from DB layer.
+
+Tradeoffs given 3-4h timebox: Used Redis SET NX, not Redlock - acceptable for single region, would need distributed lock for multi-region. Kept Redis key after processing with TTL instead of deleting per spec literal - deleting would allow reprocessing on late retry. No DLQ UI or Prometheus metrics - would add dead-letter queue and alert on 401 spike in production.
+
+Next: Add webhook timestamp replay protection (<5min), idempotency store fallback to Postgres if Redis down, OpenTelemetry tracing for webhook->queue->DB flow.
+
+## AI Usage Review
+
+Tools used: Meta AI and ChatGPT as engineering assistants.
+
+Key prompts: "BullMQ Queue and Worker with Prisma transaction exactly-once pattern", "Express raw body HMAC SHA256 timingSafeEqual implementation", "tenant isolation middleware JWT 403 vs 404 for regulated platform", "Prisma upsert webhook event audit with investor update transaction".
+
+What AI got right: Correctly suggested BullMQ defaultJobOptions with attempts and exponential backoff, identified need for express.raw to preserve body for HMAC, suggested SET NX pattern for Redis idempotency, and structured separation of authentication (who) vs authorization (what tenant can access).
+
+What AI got wrong: 1) Suggested storing webhook payload as string and parsing twice - once for validation and once for enqueue - inefficient. I fixed to single JSON.parse after HMAC check. 2) Generated worker without Prisma $transaction - would leave investor updated but audit record missing if second write fails, breaking auditability requirement. I added $transaction for atomicity. 3) Suggested deleting Redis idempotency key immediately after enqueue per spec literal "clear after successful processing" - this is unsafe as it allows duplicate processing if provider retries after queue failure but before DB commit. I kept key with 72h TTL and only overwrite to 'processed' after successful DB transaction. 4) Initially suggested returning 403 for webhook signature failure - wrong, webhooks have no tenant, 401 is correct for HMAC. I separated webhook auth (HMAC 401) from investor API auth (JWT 401 + tenant 403).
+
+What I changed: Added release of Redis key on enqueue failure to prevent event loss - if queue.add fails, key is deleted so provider retry can succeed. Added timingSafeEqual for HMAC to prevent timing attack. Added structured security logging for INVALID_KYC_SIGNATURE and TENANT_ISOLATION_VIOLATION with ip, requestId for SOC alerting as required for regulated UAE/US platform. Added unique constraint handling with upsert to handle concurrent duplicate events at DB layer. Final architecture decisions on 202 vs 200, TTL duration, and concurrency based on production experience with similar custody/KYC integrations.

@@ -15,13 +15,13 @@ export async function getKycStatus(
     }
 
     const investorId = id;
-    // const auth = req.auth;
+    const auth = req.auth;
 
-    // if (!auth) {
-    //     return res.status(401).json({
-    //         error: "Authentication required",
-    //     });
-    // }
+    if (!auth) {
+        return res.status(401).json({
+            error: "Authentication required",
+        });
+    }
 
     try {
         const investor = await prisma.investor.findUnique({
@@ -48,18 +48,18 @@ export async function getKycStatus(
         }
 
         // Tenant isolation
-        // if (investor.tenant_id !== auth.tenant_id) {
-        //     return res.status(403).json({
-        //         error: "Forbidden",
-        //     });
-        // }
+        if (investor.tenant_id !== auth.tenant_id) {
+            return res.status(403).json({
+                error: "Forbidden",
+            });
+        }
 
         // JWT investor must match the requested investor
-        // if (investor.id !== auth.investor_id) {
-        //     return res.status(403).json({
-        //         error: "Forbidden",
-        //     });
-        // }
+        if (investor.id !== auth.investor_id) {
+            return res.status(403).json({
+                error: "Forbidden",
+            });
+        }
 
         const latestWebhookEvent = investor.webhookEvents[0];
 
