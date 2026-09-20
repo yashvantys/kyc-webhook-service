@@ -57,7 +57,7 @@ export async function handleKycWebhook(
         return res.sendStatus(200);
     } catch (error) {
         console.error("Failed to enqueue KYC webhook", error);
-        await idempotencyService.clear(payload.event_id)
+        await idempotencyService.clear(payload.event_id).catch(() => { })
         return res.status(500).json({
             error: "Internal server error",
         });
