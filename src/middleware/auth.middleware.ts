@@ -37,10 +37,8 @@ export function authenticate(
             error: "Authentication required",
         });
         return;
-    }
-    console.log("Authorization header:", authorization);
+    }    
     const token = authorization.substring("Bearer ".length).trim();
-
     if (!token) {
         res.status(401).json({
             error: "Authentication required",

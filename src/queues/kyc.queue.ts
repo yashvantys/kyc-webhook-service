@@ -13,4 +13,8 @@ export const kycQueue = new Queue("kyc-status-update", {
         host: redisConnection.hostname,
         port: Number(redisConnection.port || 6379),
     },
+    defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 1000 },
+    },
 });
