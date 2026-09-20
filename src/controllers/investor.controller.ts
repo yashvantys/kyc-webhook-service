@@ -4,25 +4,20 @@ import { prisma } from "../config/prisma.js";
 export async function getKycStatus(
     req: Request,
     res: Response,
-): Promise<Response> {
-    console.log("inside")
+): Promise<Response> {   
     const { id } = req.params;
-
     if (typeof id !== "string") {
         return res.status(400).json({
             error: "Invalid investor id",
         });
     }
-
     const investorId = id;
     const auth = req.auth;
-
     if (!auth) {
         return res.status(401).json({
             error: "Authentication required",
         });
     }
-
     try {
         const investor = await prisma.investor.findUnique({
             where: {
@@ -46,14 +41,12 @@ export async function getKycStatus(
                 error: "Investor not found",
             });
         }
-
         // Tenant isolation
         if (investor.tenant_id !== auth.tenant_id) {
             return res.status(403).json({
                 error: "Forbidden",
             });
         }
-
         // JWT investor must match the requested investor
         if (investor.id !== auth.investor_id) {
             return res.status(403).json({
@@ -62,7 +55,6 @@ export async function getKycStatus(
         }
 
         const latestWebhookEvent = investor.webhookEvents[0];
-
         return res.status(200).json({
             id: investor.id,
             email: investor.email,
