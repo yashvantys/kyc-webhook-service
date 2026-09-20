@@ -351,7 +351,7 @@ Next: Add webhook timestamp replay protection (<5min), idempotency store fallbac
 
 ## AI Usage Review
 
-Tools used: Meta AI and ChatGPT as engineering assistants.
+Tools used: github copilot and ChatGPT as engineering assistants.
 
 Key prompts: "BullMQ Queue and Worker with Prisma transaction exactly-once pattern", "Express raw body HMAC SHA256 timingSafeEqual implementation", "tenant isolation middleware JWT 403 vs 404 for regulated platform", "Prisma upsert webhook event audit with investor update transaction".
 
